@@ -201,7 +201,6 @@ if [ ! -d "$extract_root/web/dist" ]; then
 fi
 
 install_root="/usr/local/lib/macman"
-share_root="/usr/local/share/macman"
 bin_link="/usr/local/bin/macmand"
 data_dir="/var/lib/macman"
 service_name="macmand"
@@ -230,10 +229,10 @@ if ! command -v groupadd >/dev/null 2>&1; then
 fi
 
 echo "Installing macmand into standard Linux locations..."
-macman_release_run_root install -d -m 0755 "$install_root" "$share_root" "$share_root/web" "$data_dir"
+macman_release_run_root install -d -m 0755 "$install_root" "$install_root/web" "$data_dir"
 macman_release_run_root install -m 0755 "$extract_root/macmand" "$install_root/macmand"
-macman_release_run_root rm -rf "$share_root/web/dist"
-macman_release_run_root cp -R "$extract_root/web/dist" "$share_root/web/dist"
+macman_release_run_root rm -rf "$install_root/web/dist"
+macman_release_run_root cp -R "$extract_root/web/dist" "$install_root/web/dist"
 macman_release_run_root ln -sf "$install_root/macmand" "$bin_link"
 
 if ! getent group "$service_group" >/dev/null 2>&1; then
@@ -260,8 +259,7 @@ Wants=network-online.target
 [Service]
 User=$service_user
 Group=$service_group
-WorkingDirectory=$data_dir
-Environment=MACMAND_STATIC_DIR=$share_root/web/dist
+WorkingDirectory=$install_root
 ExecStart=$install_root/macmand --data-dir $data_dir
 Restart=on-failure
 RestartSec=5
@@ -280,7 +278,7 @@ echo "macmand is installed and the service has been started."
 echo "Service name: $service_name"
 echo "Data directory: $data_dir"
 echo "Binary: $install_root/macmand"
-echo "Web assets: $share_root/web/dist"
+echo "Web assets: $install_root/web/dist"
 echo ""
 echo "Quick start:"
 echo "  sudo systemctl status $service_name"

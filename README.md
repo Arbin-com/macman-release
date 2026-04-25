@@ -16,6 +16,7 @@ The installers expect:
 - `latest` to contain the newest released version string
 - `<version>/manifest.json` to describe the platform assets
 - private GitHub release assets for the actual binaries
+- the daemon bundle to unpack `web/dist` beside `macmand`
 
 The installer scripts support:
 
