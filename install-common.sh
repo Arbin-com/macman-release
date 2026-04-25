@@ -4,6 +4,9 @@
 
 MACMAN_RELEASE_BASE_URL="${MACMAN_RELEASE_BASE_URL:-https://arbin-com.github.io/macman-release}"
 MACMAN_GITHUB_APP_CLIENT_ID="${MACMAN_GITHUB_APP_CLIENT_ID:-Iv23liqzeRmAZM7t6ZU1}"
+MACMAN_RELEASE_GITHUB_OWNER="${MACMAN_RELEASE_GITHUB_OWNER:-Arbin-com}"
+MACMAN_RELEASE_GITHUB_REPO="${MACMAN_RELEASE_GITHUB_REPO:-macman}"
+MACMAN_RELEASE_API_BASE_URL="${MACMAN_RELEASE_API_BASE_URL:-https://api.github.com/repos/${MACMAN_RELEASE_GITHUB_OWNER}/${MACMAN_RELEASE_GITHUB_REPO}}"
 MACMAN_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/macman"
 MACMAN_APP_TOKEN_FILE="$MACMAN_CONFIG_DIR/github-app-auth.json"
 
@@ -108,6 +111,85 @@ macman_release_parse_github_release_url() {
     return 0
   fi
   return 1
+}
+
+macman_release_github_api_get() {
+  local path="$1"
+  macman_release_resolve_github_auth
+
+  if [ "$DOWNLOADER" = "curl" ]; then
+    curl -fsSL \
+      -H "Accept: application/vnd.github+json" \
+      -H "Authorization: Bearer $GITHUB_AUTH_TOKEN" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "$MACMAN_RELEASE_API_BASE_URL$path"
+  else
+    wget -q -O - \
+      --header="Accept: application/vnd.github+json" \
+      --header="Authorization: Bearer $GITHUB_AUTH_TOKEN" \
+      --header="X-GitHub-Api-Version: 2022-11-28" \
+      "$MACMAN_RELEASE_API_BASE_URL$path"
+  fi
+}
+
+macman_release_resolve_newest_release_tag() {
+  local releases_json normalized
+  releases_json="$(macman_release_github_api_get "/releases?per_page=1")"
+  if command -v jq >/dev/null 2>&1; then
+    jq -r '.[0].tag_name // empty' <<<"$releases_json"
+    return 0
+  fi
+  normalized="$(macman_release_normalize_json "$releases_json")"
+  if [[ $normalized =~ \"tag_name\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+  return 1
+}
+
+macman_release_resolve_asset_api_url_from_tag() {
+  local tag="$1"
+  local asset_name="$2"
+  local response asset_url normalized asset_block
+  response="$(macman_release_github_api_get "/releases/tags/$tag")"
+  if command -v jq >/dev/null 2>&1; then
+    asset_url="$(echo "$response" | jq -r --arg asset_name "$asset_name" '.assets[] | select(.name == $asset_name) | .url' | head -n 1)"
+  else
+    normalized="$(macman_release_normalize_json "$response")"
+    asset_block="$(printf '%s' "$normalized" | grep -oE '\{[^{}]*"name"[[:space:]]*:[[:space:]]*"[^"]+"[^{}]*"url"[[:space:]]*:[[:space:]]*"https://api\.github\.com/repos/[^"]+/releases/assets/[0-9]+"[^{}]*\}' | grep "\"name\":\"$asset_name\"" | head -n 1 || true)"
+    if [ -n "$asset_block" ]; then
+      asset_url="$(macman_release_json_get_string "$asset_block" "url" || true)"
+    else
+      asset_url=""
+    fi
+  fi
+
+  if [ -z "$asset_url" ]; then
+    echo "Failed to resolve GitHub release asset URL for tag $tag asset $asset_name" >&2
+    exit 1
+  fi
+  printf '%s' "$asset_url"
+}
+
+macman_release_platform_target() {
+  case "$MACMAN_RELEASE_PLATFORM" in
+    linux-amd64) printf '%s' "linux-amd64" ;;
+    linux-arm64) printf '%s' "linux-arm64" ;;
+    osx-amd64) printf '%s' "osx-amd64" ;;
+    osx-arm64) printf '%s' "osx-arm64" ;;
+    *)
+      echo "Unsupported platform: $MACMAN_RELEASE_PLATFORM" >&2
+      exit 1
+      ;;
+  esac
+}
+
+macman_release_macman_asset_name() {
+  printf 'macman-%s' "$(macman_release_platform_target)"
+}
+
+macman_release_macmand_asset_name() {
+  printf 'macmand-%s.zip' "$(macman_release_platform_target)"
 }
 
 macman_release_platform() {
@@ -537,10 +619,10 @@ macman_release_get_manifest_values() {
 }
 
 macman_release_resolve_version() {
-  local target="${1:-latest}"
+  local target="${1:-newest}"
   case "$target" in
-    latest|"")
-      macman_release_download_or_fail "$MACMAN_RELEASE_BASE_URL/latest"
+    newest|latest|"")
+      macman_release_resolve_newest_release_tag
       ;;
     *)
       printf '%s' "$target"

@@ -180,7 +180,7 @@
         <div class="label">Quick Install</div>
         <h2>macmand daemon</h2>
         <div class="stack">
-          <p>One-line install. This resolves the latest release, detects Linux CPU architecture, and starts the service.</p>
+          <p>One-line install. This resolves the newest release by timestamp, detects Linux CPU architecture, and starts the service.</p>
           <pre class="cmd">curl -fsSL https://arbin-com.github.io/macman-release/install-macmand.sh | bash</pre>
           <ul>
             <li>Installs into Linux system locations</li>
@@ -222,11 +222,10 @@
 
       <article class="card">
         <div class="label">Layout</div>
-        <h2>Manifest expectations</h2>
+        <h2>Release expectations</h2>
         <div class="stack">
           <ul>
-            <li><code>latest</code> returns the newest release version</li>
-            <li><code>&lt;version&gt;/manifest.json</code> describes the platform assets</li>
+            <li>The installers ask GitHub Releases for the newest tag from the private <code>Arbin-com/macman</code> repo</li>
             <li>Linux and macOS platform names use the same OS/arch mapping as the installers</li>
             <li>The macmand bundle must unpack <code>web/dist</code> beside the daemon binary</li>
           </ul>

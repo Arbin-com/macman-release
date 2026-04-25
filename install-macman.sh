@@ -3,16 +3,16 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: install-macman.sh [latest|VERSION] [--auth auto|app|pat] [--silent|--non-interactive] [--no-browser-open]
+Usage: install-macman.sh [newest|VERSION] [--auth auto|app|pat] [--silent|--non-interactive] [--no-browser-open]
 Examples:
   install-macman.sh
-  install-macman.sh latest
+  install-macman.sh newest
   install-macman.sh 1.2.3
   install-macman.sh --auth pat
 EOF
 }
 
-TARGET="latest"
+TARGET="newest"
 AUTH_MODE="auto"
 MACMAN_RELEASE_SILENT=""
 MACMAN_RELEASE_NO_BROWSER_OPEN="${MACMAN_RELEASE_NO_BROWSER_OPEN:-0}"
@@ -49,8 +49,8 @@ while [ $# -gt 0 ]; do
       esac
       shift
       ;;
-    latest)
-      TARGET="latest"
+    newest|latest)
+      TARGET="newest"
       ;;
     *)
       if [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+([\-+][^[:space:]]+)?$ ]]; then
@@ -121,38 +121,6 @@ if [ -z "$version" ]; then
   exit 1
 fi
 
-manifest_json="$(macman_release_fetch_manifest "$version")"
-if command -v jq >/dev/null 2>&1; then
-  url="$(echo "$manifest_json" | jq -r ".platforms[\"$MACMAN_RELEASE_PLATFORM\"].url // empty")"
-  checksum="$(echo "$manifest_json" | jq -r ".platforms[\"$MACMAN_RELEASE_PLATFORM\"].sha256 // empty")"
-  github_asset_api_url="$(echo "$manifest_json" | jq -r ".platforms[\"$MACMAN_RELEASE_PLATFORM\"].github_asset_api_url // empty")"
-  github_owner="$(echo "$manifest_json" | jq -r ".platforms[\"$MACMAN_RELEASE_PLATFORM\"].github_owner // empty")"
-  github_repo="$(echo "$manifest_json" | jq -r ".platforms[\"$MACMAN_RELEASE_PLATFORM\"].github_repo // empty")"
-  github_tag="$(echo "$manifest_json" | jq -r ".platforms[\"$MACMAN_RELEASE_PLATFORM\"].github_tag // empty")"
-  github_asset="$(echo "$manifest_json" | jq -r ".platforms[\"$MACMAN_RELEASE_PLATFORM\"].github_asset // empty")"
-else
-  manifest_values="$(macman_release_get_manifest_values "$manifest_json" "$MACMAN_RELEASE_PLATFORM" || true)"
-  url="$(printf '%s' "$manifest_values" | awk -F '\t' '{print $1}')"
-  checksum="$(printf '%s' "$manifest_values" | awk -F '\t' '{print $2}')"
-  github_asset_api_url="$(printf '%s' "$manifest_values" | awk -F '\t' '{print $3}')"
-  github_owner="$(printf '%s' "$manifest_values" | awk -F '\t' '{print $4}')"
-  github_repo="$(printf '%s' "$manifest_values" | awk -F '\t' '{print $5}')"
-  github_tag="$(printf '%s' "$manifest_values" | awk -F '\t' '{print $6}')"
-  github_asset="$(printf '%s' "$manifest_values" | awk -F '\t' '{print $7}')"
-fi
-
-macman_release_populate_github_metadata_from_url_if_needed
-
-if { [ -z "$url" ] && [ -z "$github_asset_api_url" ]; } || [ -z "$checksum" ]; then
-  echo "Platform $MACMAN_RELEASE_PLATFORM not found in manifest for version $version" >&2
-  exit 1
-fi
-
-if [[ ! "$checksum" =~ ^[a-f0-9]{64}$ ]]; then
-  echo "Invalid checksum in manifest for $MACMAN_RELEASE_PLATFORM" >&2
-  exit 1
-fi
-
 tmp_dir="$(mktemp -d)"
 install_success=0
 cleanup() {
@@ -164,21 +132,12 @@ trap cleanup EXIT
 
 binary_path="$tmp_dir/macman-${version}-${MACMAN_RELEASE_PLATFORM}"
 
-if [ -n "$github_asset_api_url" ]; then
-  echo "Downloading macman $version ($MACMAN_RELEASE_PLATFORM)..."
-  if ! macman_release_download_github_asset "$github_asset_api_url" "$binary_path"; then
-    echo "Failed to download GitHub release asset ${github_asset:-for $MACMAN_RELEASE_PLATFORM}" >&2
-    echo "Auth mode: ${AUTH_KIND:-unknown}. Provide GH_TOKEN/GITHUB_TOKEN or run interactively to authenticate." >&2
-    exit 1
-  fi
-else
-  macman_release_download_or_fail "$url" "$binary_path"
-fi
+github_asset_api_url="$(macman_release_resolve_asset_api_url_from_tag "$version" "$(macman_release_macman_asset_name)")"
 
-macman_release_require_checksum_tool
-actual="$(macman_release_checksum_cmd "$binary_path")"
-if [ "$actual" != "$checksum" ]; then
-  echo "Checksum verification failed" >&2
+echo "Downloading macman $version ($MACMAN_RELEASE_PLATFORM)..."
+if ! macman_release_download_github_asset "$github_asset_api_url" "$binary_path"; then
+  echo "Failed to download GitHub release asset for $MACMAN_RELEASE_PLATFORM" >&2
+  echo "Auth mode: ${AUTH_KIND:-unknown}. Provide GH_TOKEN/GITHUB_TOKEN or run interactively to authenticate." >&2
   exit 1
 fi
 
