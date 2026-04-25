@@ -119,6 +119,40 @@
       white-space: pre;
     }
 
+    .snippet {
+      position: relative;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      border: 1px solid rgba(125, 211, 252, 0.25);
+      background: rgba(8, 16, 28, 0.88);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .copy-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(125, 211, 252, 0.45);
+      background: rgba(13, 25, 43, 0.98);
+    }
+
+    .copy-btn:active {
+      transform: translateY(0);
+    }
+
+    .copy-btn[data-copied="true"] {
+      border-color: rgba(159, 239, 195, 0.65);
+      color: var(--accent2);
+    }
+
     .label {
       display: inline-flex;
       align-items: center;
@@ -181,7 +215,10 @@
         <h2>macmand daemon</h2>
         <div class="stack">
           <p>One-line install. This resolves the newest release by timestamp, detects Linux CPU architecture, and starts the service.</p>
-          <pre class="cmd">curl -fsSL https://arbin-com.github.io/macman-release/install-macmand.sh | bash</pre>
+          <div class="snippet">
+            <button class="copy-btn" type="button" data-copy-target="macmand-cmd">Copy</button>
+            <pre class="cmd" id="macmand-cmd">curl -fsSL https://arbin-com.github.io/macman-release/install-macmand.sh | bash</pre>
+          </div>
           <ul>
             <li>Installs into Linux system locations</li>
             <li>Creates a systemd service</li>
@@ -196,7 +233,10 @@
         <h2>macman CLI</h2>
         <div class="stack">
           <p>One-line install for the CLI binary. If the target bin directory is not on <code>PATH</code>, the installer prints the exact export line to add.</p>
-          <pre class="cmd">curl -fsSL https://arbin-com.github.io/macman-release/install-macman.sh | bash</pre>
+          <div class="snippet">
+            <button class="copy-btn" type="button" data-copy-target="macman-cmd">Copy</button>
+            <pre class="cmd" id="macman-cmd">curl -fsSL https://arbin-com.github.io/macman-release/install-macman.sh | bash</pre>
+          </div>
           <ul>
             <li>Installs the latest CLI binary</li>
             <li>Uses <code>/usr/local/bin</code> when possible</li>
@@ -240,5 +280,44 @@
       GitHub Pages can publish this root page directly from the <code>main</code> branch.
     </p>
   </main>
+  <script>
+    async function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+
+    document.querySelectorAll('.copy-btn').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const targetId = button.getAttribute('data-copy-target');
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (!target) return;
+        try {
+          await copyText(target.textContent || '');
+          button.textContent = 'Copied';
+          button.dataset.copied = 'true';
+          window.setTimeout(() => {
+            button.textContent = 'Copy';
+            button.dataset.copied = 'false';
+          }, 1500);
+        } catch (error) {
+          button.textContent = 'Copy failed';
+          window.setTimeout(() => {
+            button.textContent = 'Copy';
+          }, 1500);
+        }
+      });
+    });
+  </script>
 </body>
 </html>
