@@ -2,6 +2,8 @@
 
 This repository hosts the public installer entrypoints for `macmand` and `macman`.
 
+GitHub Pages: https://arbin-com.github.io/macman-release/
+
 ## Install
 
 ```bash
